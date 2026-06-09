@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { SimMode, SimulationParams, Particle } from '../types'
+import type { SimMode, SimulationParams, Particle, TrajectoryFrame, PlaybackState } from '../types'
 
 const COLORS = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c084fc','#f472b6','#38bdf8']
 
@@ -22,7 +22,7 @@ function randomParticles(count: number): Particle[] {
   }))
 }
 
-interface SimStore extends SimulationParams {
+interface SimStore extends SimulationParams, PlaybackState {
   particles: Particle[]
   fps: number
   totalEnergy: number
@@ -33,6 +33,16 @@ interface SimStore extends SimulationParams {
   setFps: (fps: number) => void
   setTotalEnergy: (e: number) => void
   applyPreset: (preset: Partial<SimulationParams>) => void
+  startRecording: () => void
+  stopRecording: () => void
+  recordFrame: (particles: Particle[]) => void
+  startPlayback: () => void
+  stopPlayback: () => void
+  setCurrentFrameIndex: (index: number) => void
+  clearTimeline: () => void
+  getPlaybackParticles: () => Particle[]
+  setMaxRecordFrames: (frames: number) => void
+  setRecordInterval: (interval: number) => void
 }
 
 export const useSimStore = create<SimStore>((set, get) => ({
@@ -47,6 +57,12 @@ export const useSimStore = create<SimStore>((set, get) => ({
   particles: randomParticles(300),
   fps: 0,
   totalEnergy: 0,
+  isRecording: false,
+  isPlaying: false,
+  timeline: [],
+  currentFrameIndex: 0,
+  maxRecordFrames: 1800,
+  recordInterval: 2,
   setMode: (mode) => set({ mode }),
   setParticleCount: (count) => set({ particleCount: count, particles: randomParticles(count) }),
   setParam: (key, value) => set({ [key]: value } as any),
@@ -61,4 +77,58 @@ export const useSimStore = create<SimStore>((set, get) => ({
     const { particleCount } = get()
     set({ particles: randomParticles(particleCount) })
   },
+  startRecording: () => {
+    set({ isRecording: true, timeline: [], currentFrameIndex: 0, isPlaying: false })
+  },
+  stopRecording: () => {
+    set({ isRecording: false })
+  },
+  recordFrame: (particles: Particle[]) => {
+    const { timeline, maxRecordFrames } = get()
+    const frame: TrajectoryFrame = {
+      timestamp: performance.now(),
+      particles: particles.map(p => ({
+        position: [...p.position] as [number, number, number],
+        velocity: [...p.velocity] as [number, number, number],
+      })),
+    }
+    const newTimeline = [...timeline, frame]
+    if (newTimeline.length > maxRecordFrames) {
+      newTimeline.shift()
+    }
+    set({ timeline: newTimeline })
+  },
+  startPlayback: () => {
+    const { timeline } = get()
+    if (timeline.length === 0) return
+    set({ isPlaying: true, isRecording: false, paused: true })
+  },
+  stopPlayback: () => {
+    set({ isPlaying: false, paused: false })
+  },
+  setCurrentFrameIndex: (index: number) => {
+    const { timeline } = get()
+    const clampedIndex = Math.max(0, Math.min(index, timeline.length - 1))
+    set({ currentFrameIndex: clampedIndex })
+  },
+  clearTimeline: () => {
+    set({ timeline: [], currentFrameIndex: 0, isPlaying: false, isRecording: false })
+  },
+  getPlaybackParticles: () => {
+    const { timeline, currentFrameIndex, particles } = get()
+    if (timeline.length === 0) return particles
+    const frame = timeline[currentFrameIndex]
+    if (!frame) return particles
+    return particles.map((p, i) => {
+      const recorded = frame.particles[i]
+      if (!recorded) return p
+      return {
+        ...p,
+        position: [...recorded.position] as [number, number, number],
+        velocity: [...recorded.velocity] as [number, number, number],
+      }
+    })
+  },
+  setMaxRecordFrames: (frames: number) => set({ maxRecordFrames: frames }),
+  setRecordInterval: (interval: number) => set({ recordInterval: interval }),
 }))

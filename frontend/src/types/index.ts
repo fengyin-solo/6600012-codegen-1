@@ -25,3 +25,20 @@ export interface Preset {
   name: string
   params: Partial<SimulationParams>
 }
+
+export interface TrajectoryFrame {
+  timestamp: number
+  particles: Array<{
+    position: [number, number, number]
+    velocity: [number, number, number]
+  }>
+}
+
+export interface PlaybackState {
+  isRecording: boolean
+  isPlaying: boolean
+  timeline: TrajectoryFrame[]
+  currentFrameIndex: number
+  maxRecordFrames: number
+  recordInterval: number
+}

@@ -15,12 +15,169 @@ const PRESETS = [
   { id: 'tornado', name: '龙卷风', params: { mode: 'vortex' as SimMode, gravity: 2, attractorStrength: 12, damping: 0.02, particleCount: 400 } },
 ]
 
+function formatDuration(frames: number): string {
+  const seconds = Math.floor(frames / 30)
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 export default function ControlPanel() {
   const store = useSimStore()
+  const timelineLength = store.timeline.length
+  const progressPercent = timelineLength > 0 
+    ? ((store.currentFrameIndex + 1) / timelineLength) * 100 
+    : 0
 
   return (
     <div className="w-80 bg-gray-900 border-l border-gray-700 p-4 overflow-y-auto flex flex-col gap-4">
       <h2 className="text-lg font-bold text-white">粒子物理模拟器</h2>
+
+      {/* Trajectory Playback Section */}
+      <div className="p-3 bg-gray-800 rounded-lg border border-gray-700">
+        <label className="text-xs text-gray-400 block mb-2 font-semibold">🎬 轨迹回放</label>
+        
+        {/* Record Controls */}
+        <div className="flex gap-2 mb-3">
+          {!store.isRecording ? (
+            <button
+              onClick={() => store.startRecording()}
+              disabled={store.isPlaying}
+              className="flex-1 py-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded text-sm font-medium"
+            >
+              ⏺ 开始录制
+            </button>
+          ) : (
+            <button
+              onClick={() => store.stopRecording()}
+              className="flex-1 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded text-sm font-medium animate-pulse"
+            >
+              ⏹ 停止录制
+            </button>
+          )}
+          <button
+            onClick={() => store.clearTimeline()}
+            disabled={timelineLength === 0}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white rounded text-sm"
+          >
+            🗑
+          </button>
+        </div>
+
+        {/* Recording Status */}
+        <div className="text-xs text-gray-400 mb-3 flex justify-between">
+          <span>
+            {store.isRecording ? (
+              <span className="text-red-400">● 正在录制...</span>
+            ) : timelineLength > 0 ? (
+              <span className="text-green-400">已录制 {timelineLength}/{store.maxRecordFrames} 帧</span>
+            ) : (
+              <span>暂无录制数据</span>
+            )}
+          </span>
+          <span>时长: {formatDuration(timelineLength)}</span>
+        </div>
+
+        {/* Timeline Progress Bar */}
+        {timelineLength > 0 && (
+          <div className="mb-3">
+            <div className="w-full bg-gray-700 rounded-full h-1.5 mb-1 overflow-hidden">
+              <div 
+                className="bg-blue-500 h-1.5 rounded-full transition-all duration-75"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>0:00</span>
+              <span>{formatDuration(store.currentFrameIndex + 1)}</span>
+              <span>{formatDuration(timelineLength)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Timeline Slider */}
+        {timelineLength > 0 && (
+          <div className="mb-3">
+            <label className="text-xs text-gray-400 block mb-1">时间轴</label>
+            <input
+              type="range"
+              min={0}
+              max={timelineLength - 1}
+              step={1}
+              value={store.currentFrameIndex}
+              onChange={e => store.setCurrentFrameIndex(Number(e.target.value))}
+              className="w-full accent-blue-500"
+            />
+            <div className="text-xs text-gray-500 text-center mt-1">
+              帧 {store.currentFrameIndex + 1} / {timelineLength}
+            </div>
+          </div>
+        )}
+
+        {/* Playback Controls */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (store.isPlaying) {
+                store.stopPlayback()
+              } else {
+                store.startPlayback()
+              }
+            }}
+            disabled={timelineLength === 0}
+            className={`flex-1 py-2 rounded text-sm font-medium text-white disabled:bg-gray-600 disabled:cursor-not-allowed ${
+              store.isPlaying ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {store.isPlaying ? '⏸ 暂停回放' : '▶ 开始回放'}
+          </button>
+          <button
+            onClick={() => store.setCurrentFrameIndex(0)}
+            disabled={timelineLength === 0}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white rounded text-sm"
+          >
+            ⏮
+          </button>
+          <button
+            onClick={() => store.setCurrentFrameIndex(timelineLength - 1)}
+            disabled={timelineLength === 0}
+            className="px-3 py-2 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white rounded text-sm"
+          >
+            ⏭
+          </button>
+        </div>
+
+        {/* Recording Settings */}
+        <div className="mt-4 pt-3 border-t border-gray-700">
+          <label className="text-xs text-gray-500 block mb-2">录制设置</label>
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs text-gray-400">录制间隔: 每 {store.recordInterval} 帧</label>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={store.recordInterval}
+                onChange={e => store.setRecordInterval(Number(e.target.value))}
+                className="w-full accent-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-400">最大帧数: {store.maxRecordFrames}</label>
+              <input
+                type="range"
+                min={300}
+                max={3600}
+                step={300}
+                value={store.maxRecordFrames}
+                onChange={e => store.setMaxRecordFrames(Number(e.target.value))}
+                className="w-full accent-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Mode */}
       <div>
