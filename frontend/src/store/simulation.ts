@@ -45,7 +45,11 @@ interface SimStore extends SimulationParams, PlaybackState {
   setRecordInterval: (interval: number) => void
 }
 
-export const useSimStore = create<SimStore>((set, get) => ({
+export const useSimStore = create<SimStore>((set, get) => {
+  if (typeof window !== 'undefined') {
+    (window as any).__simStore = { set, get }
+  }
+  return ({
   mode: 'gravity',
   particleCount: 300,
   gravity: 9.8,
@@ -131,4 +135,4 @@ export const useSimStore = create<SimStore>((set, get) => ({
   },
   setMaxRecordFrames: (frames: number) => set({ maxRecordFrames: frames }),
   setRecordInterval: (interval: number) => set({ recordInterval: interval }),
-}))
+})})
